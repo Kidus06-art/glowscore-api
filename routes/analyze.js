@@ -12,10 +12,30 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-You are an expert in image analysis. Based on the two photos provided (before and after), evaluate the overall glow-up and return a single numeric score from 1 to 100.
-Be strict — only exceptional transformations should receive scores above 90.
-Respond ONLY in this format:
-{ "score": [number from 1 to 100] }
+You are an AI trained to analyze before and after glow-up photos and return a total Glow Score out of 100, along with a breakdown.
+
+Compare the two images and evaluate these categories:
+- Skin Clarity
+- Smile Confidence
+- Hair Style Impact
+- Style Upgrade (clothing/accessories)
+- Facial Expression & Presence
+
+Respond ONLY in this strict JSON format:
+
+{
+  "glow_score": 85,
+  "category_scores": {
+    "skin_clarity": 18,
+    "smile_confidence": 17,
+    "hair_style_impact": 19,
+    "style_upgrade": 16,
+    "facial_expression_presence": 15
+  },
+  "feedback": "You're glowing! New hairstyle and smile really stand out."
+}
+
+Return no other text. Only raw JSON.
 `;
 
     const response = await axios.post('https://api.openai.com/v1/chat/completions', {
@@ -30,7 +50,7 @@ Respond ONLY in this format:
           ]
         }
       ],
-      max_tokens: 100
+      max_tokens: 400
     }, {
       headers: {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -39,16 +59,21 @@ Respond ONLY in this format:
     });
 
     const resultText = response.data.choices[0].message.content;
-    const jsonStart = resultText.indexOf('{');
-    const jsonEnd = resultText.lastIndexOf('}');
-    const jsonString = resultText.slice(jsonStart, jsonEnd + 1);
+
+    // 🔍 Extract first valid JSON object using regex
+    const match = resultText.match(/\{[\s\S]*\}/);
+    if (!match) {
+      return res.status(500).json({ error: 'No valid JSON found in GPT response.', raw: resultText });
+    }
+
+    const jsonString = match[0];
     const result = JSON.parse(jsonString);
 
     res.json({ result });
 
   } catch (err) {
     console.error('GPT Vision error:', err.response?.data || err.message);
-    res.status(500).json({ error: 'AI analysis failed.' });
+    res.status(500).json({ error: 'AI analysis failed.', details: err.response?.data || err.message });
   }
 });
 
