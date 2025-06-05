@@ -67,11 +67,8 @@ You are an AI glow-up evaluator. Based on two photos (before and after), evaluat
     );
 
     const resultText = response.data.choices[0].message.content.trim();
-
-    // DEBUG LOG
     console.log("RAW GPT OUTPUT:", resultText);
 
-    // Try to extract JSON portion only
     const jsonStart = resultText.indexOf('{');
     const jsonEnd = resultText.lastIndexOf('}');
     const jsonString = resultText.slice(jsonStart, jsonEnd + 1);
@@ -80,13 +77,29 @@ You are an AI glow-up evaluator. Based on two photos (before and after), evaluat
     try {
       data = JSON.parse(jsonString);
     } catch (err) {
+      console.error('❌ JSON.parse failed:', err.message);
       return res.status(500).json({
-        error: 'Failed to parse GPT response as JSON.',
+        error: 'Failed to parse GPT response.',
         raw: resultText
       });
     }
 
-    // Safely calculate total score
+    // Double check that all required fields are present
+    const requiredKeys = [
+      'skin_clarity',
+      'smile_confidence',
+      'hair_style_impact',
+      'style_upgrade',
+      'facial_expression_presence'
+    ];
+
+    for (const key of requiredKeys) {
+      if (typeof data[key] !== 'number') {
+        console.error(`❌ Missing or invalid score: ${key}`);
+        return res.status(500).json({ error: `Invalid or missing value for "${key}".`, raw: data });
+      }
+    }
+
     const total_score =
       Number(data.skin_clarity) +
       Number(data.smile_confidence) +
@@ -94,13 +107,15 @@ You are an AI glow-up evaluator. Based on two photos (before and after), evaluat
       Number(data.style_upgrade) +
       Number(data.facial_expression_presence);
 
+    console.log('✅ Total Score:', total_score);
+
     res.json({
       total_score,
       ...data
     });
 
   } catch (err) {
-    console.error('GPT Vision error:', err.response?.data || err.message);
+    console.error('GPT Vision error (outer catch):', err.response?.data || err.message);
     res.status(500).json({
       error: 'AI analysis failed.',
       details: err.response?.data || err.message
