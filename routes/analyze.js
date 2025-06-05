@@ -12,64 +12,36 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-You are an AI trained to analyze before and after glow-up photos and return a total Glow Score out of 100, as well as a detailed breakdown in structured JSON format.
-
-Compare the two images and evaluate the following visual categories:
-- Skin Clarity
-- Smile Confidence
-- Hair Style Impact
-- Style Upgrade (clothing/accessories)
-- Facial Expression & Presence
-
-Respond in **valid JSON only**, no intro or explanation. It has to be the exact same thing as down below. The Only thing you can modify are letters and numbers dont touch any ponctuations.Here's the required format:
-
-{
-  "glow_score": 87,
-  "category_scores": {
-    "skin_clarity": 18,
-    "smile_confidence": 15,
-    "hair_style_impact": 20,
-    "style_upgrade": 17,
-    "facial_expression_presence": 17
-  },
-  "feedback": "Great job! The hairstyle and confidence boost are impressive."
-}
+You are an expert in image analysis. Based on the two photos provided (before and after), evaluate the overall glow-up and return a single numeric score from 1 to 100.
+Be strict — only exceptional transformations should receive scores above 90.
+Respond ONLY in this format:
+{ "score": [number from 1 to 100] }
 `;
 
-    const response = await axios.post(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: beforeUrl } },
-              { type: 'image_url', image_url: { url: afterUrl } }
-            ]
-          }
-        ],
-        max_tokens: 400,
-        temperature: 0.7
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json'
+    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: beforeUrl } },
+            { type: 'image_url', image_url: { url: afterUrl } }
+          ]
         }
+      ],
+      max_tokens: 100
+    }, {
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
       }
-    );
+    });
 
     const resultText = response.data.choices[0].message.content;
-
-    // Extract JSON safely using regex
-    const match = resultText.match(/\{[\s\S]*\}/);
-    if (!match) {
-      return res.status(500).json({ error: 'No valid JSON found in GPT response.' });
-    }
-
-    const jsonString = match[0];
+    const jsonStart = resultText.indexOf('{');
+    const jsonEnd = resultText.lastIndexOf('}');
+    const jsonString = resultText.slice(jsonStart, jsonEnd + 1);
     const result = JSON.parse(jsonString);
 
     res.json({ result });
