@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const axios = require('axios');
+const { OpenAI } = require('openai');
 require('dotenv').config();
 
-router.post('/', async (req, res) => {
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+router.post('/analyze', async (req, res) => {
   try {
     const { beforeUrl, afterUrl } = req.body;
 
@@ -12,14 +14,34 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-You are an expert in image analysis. Based on the two photos provided (before and after), evaluate the overall glow-up and return a single numeric score from 1 to 100.
-Be strict — only exceptional transformations should receive scores above 90.
-Respond ONLY in this format:
-{ "score": [number from 1 to 100] }
+You are an AI trained to analyze before and after glow-up photos and return a total Glow Score out of 100, as well as a detailed breakdown in structured JSON format.
+
+Compare the two images and evaluate the following:
+- Skin Clarity
+- Smile Confidence
+- Hair Style Impact
+- Style Upgrade (clothing/accessories)
+- Facial Expression & Presence
+
+Respond in **valid JSON only**, no intro or explanation. Here's the required format:
+
+{
+  "glow_score": 87,
+  "category_scores": {
+    "skin_clarity": 18,
+    "smile_confidence": 15,
+    "hair_style_impact": 20,
+    "style_upgrade": 17,
+    "facial_expression_presence": 17
+  },
+  "feedback": "Great job! The hairstyle and confidence boost are impressive."
+}
 `;
 
-    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-      model: 'gpt-4o',
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4-vision-preview',
+      max_tokens: 400,
+      temperature: 0.7,
       messages: [
         {
           role: 'user',
@@ -27,28 +49,36 @@ Respond ONLY in this format:
             { type: 'text', text: prompt },
             { type: 'image_url', image_url: { url: beforeUrl } },
             { type: 'image_url', image_url: { url: afterUrl } }
-          ]
-        }
+          ],
+        },
       ],
-      max_tokens: 100
-    }, {
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      }
     });
 
-    const resultText = response.data.choices[0].message.content;
-    const jsonStart = resultText.indexOf('{');
-    const jsonEnd = resultText.lastIndexOf('}');
-    const jsonString = resultText.slice(jsonStart, jsonEnd + 1);
-    const result = JSON.parse(jsonString);
+    const raw = response.choices[0].message.content;
 
-    res.json({ result });
+    // Extract JSON using regex (between first { and last })
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (!match) {
+      return res.status(500).json({ error: 'No valid JSON found in GPT response.' });
+    }
+
+    let data;
+    try {
+      data = JSON.parse(match[0]);
+    } catch (err) {
+      console.error('JSON Parse Error:', err);
+      return res.status(500).json({ error: 'Malformed JSON. Try again.' });
+    }
+
+    return res.json({
+      glow_score: data.glow_score,
+      category_scores: data.category_scores,
+      feedback: data.feedback,
+    });
 
   } catch (err) {
-    console.error('GPT Vision error:', err.response?.data || err.message);
-    res.status(500).json({ error: 'AI analysis failed.' });
+    console.error('Server Error:', err);
+    return res.status(500).json({ error: 'Server error during glow-up analysis.' });
   }
 });
 
