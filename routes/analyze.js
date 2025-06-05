@@ -53,4 +53,22 @@ No text, no keys, no explanation. Only the array.
       }
     );
 
-    // Now GPT should respond with a raw list: [85, 18, 17, 19,]()
+    // Now GPT should respond with a raw list: [85, 18, 17, 19, 16, 15]
+    const resultList = JSON.parse(response.data.choices[0].message.content.trim());
+
+    res.json({
+      glow_score: resultList[0],
+      skin_clarity: resultList[1],
+      smile_confidence: resultList[2],
+      hair_style_impact: resultList[3],
+      style_upgrade: resultList[4],
+      facial_expression_presence: resultList[5]
+    });
+
+  } catch (err) {
+    console.error('GPT Vision error:', err.response?.data || err.message);
+    res.status(500).json({ error: 'AI analysis failed.', details: err.response?.data || err.message });
+  }
+});
+
+module.exports = router;
