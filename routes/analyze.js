@@ -14,54 +14,65 @@ router.post('/', async (req, res) => {
     const prompt = `
 Analyze the before and after glow-up photos.
 
-Evaluate these 5 categories (each out of 20):
-1. Skin Clarity  
-2. Smile Confidence  
-3. Hair Style Impact  
-4. Style Upgrade  
+Evaluate these 5 categories (each scored out of 20):
+1. Skin Clarity
+2. Smile Confidence
+3. Hair Style Impact
+4. Style Upgrade
 5. Facial Expression & Presence
 
-Respond ONLY with the five scores in this order, inside square brackets:
+Respond ONLY with the five scores in this exact order, inside square brackets:
 
 [skin_clarity, smile_confidence, hair_style_impact, style_upgrade, facial_expression_presence]
 
-Do not add any text or explanation — only return the five numbers in brackets.
+Do not include any explanation, label, or formatting. Only return the bracketed numbers.
 `;
 
-    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: beforeUrl } },
-            { type: 'image_url', image_url: { url: afterUrl } }
-          ]
+    const response = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: beforeUrl } },
+              { type: 'image_url', image_url: { url: afterUrl } }
+            ]
+          }
+        ],
+        max_tokens: 100
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json'
         }
-      ],
-      max_tokens: 100
-    }, {
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
       }
-    });
+    );
 
     const resultText = response.data.choices[0].message.content.trim();
+    console.log('RAW GPT OUTPUT:', resultText);
+
+    const cleanedText = resultText
+      .replace(/```/g, '') // remove markdown backticks if present
+      .replace(/\n/g, '')  // remove line breaks
+      .trim();
 
     let scores;
     try {
-      scores = JSON.parse(resultText);
+      scores = JSON.parse(cleanedText);
     } catch (err) {
+      console.error('❌ JSON parsing failed:', cleanedText);
       return res.status(500).json({
-        error: 'Failed to parse scores.',
-        raw: resultText
+        error: 'Failed to parse GPT output.',
+        raw: cleanedText
       });
     }
 
     if (!Array.isArray(scores) || scores.length !== 5 || scores.some(n => typeof n !== 'number')) {
-      return res.status(500).json({ error: 'Invalid score format', raw: scores });
+      return res.status(500).json({ error: 'Invalid score format.', raw: scores });
     }
 
     const total_score = scores.reduce((sum, val) => sum + val, 0);
@@ -76,7 +87,7 @@ Do not add any text or explanation — only return the five numbers in brackets.
     });
 
   } catch (err) {
-    console.error('GPT Vision error:', err.response?.data || err.message);
+    console.error('GPT Vision error (outer catch):', err.response?.data || err.message);
     res.status(500).json({
       error: 'AI analysis failed.',
       details: err.response?.data || err.message
