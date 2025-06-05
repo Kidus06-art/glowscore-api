@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
-const jsonic = require('jsonic'); // forgiving JSON parser
 require('dotenv').config();
 
 router.post('/', async (req, res) => {
@@ -13,69 +12,86 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-You are an AI that analyzes before and after glow-up photos and returns a glow score and detailed breakdown in the form of a single flat array.
+You are an AI that analyzes before and after glow-up photos and returns a glow score and category breakdown.
 
-Evaluate these 5 categories (each out of 20):
+Evaluate these 5 categories (each scored 0–20):
 1. Skin Clarity
 2. Smile Confidence
 3. Hair Style Impact
-4. Style Upgrade (clothing/accessories)
+4. Style Upgrade
 5. Facial Expression & Presence
 
-Then return the total glow_score (sum out of 100) as the first item in the array.
+Add up the category scores to produce a total glow score out of 100.
 
-Respond ONLY in this exact JSON format (no explanation, no markdown):
+Respond ONLY with this flat JSON format:
 
 {
   "scores": [85, 18, 17, 19, 16, 15],
   "feedback": "You're glowing! New hairstyle and smile really stand out."
 }
+
+No explanation, no formatting — just raw JSON.
 `;
 
-    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: beforeUrl } },
-            { type: 'image_url', image_url: { url: afterUrl } }
-          ]
+    const response = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: beforeUrl } },
+              { type: 'image_url', image_url: { url: afterUrl } }
+            ]
+          }
+        ],
+        max_tokens: 400
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json'
         }
-      ],
-      max_tokens: 400
-    }, {
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
       }
-    });
+    );
 
     const rawText = response.data.choices[0].message.content;
 
-    let result;
-    try {
-      result = jsonic(rawText); // safely parse even if there's extra stuff
-    } catch (err) {
+    // Extract JSON object from GPT output
+    const match = rawText.match(/\{[\s\S]*\}/);
+    if (!match) {
       return res.status(500).json({
-        error: 'Failed to parse GPT output.',
+        error: 'No valid JSON found in GPT response.',
         raw: rawText
       });
     }
 
-    // Optionally decode the score breakdown for clarity
-    const decoded = {
-      glow_score: result.scores[0],
-      skin_clarity: result.scores[1],
-      smile_confidence: result.scores[2],
-      hair_style_impact: result.scores[3],
-      style_upgrade: result.scores[4],
-      facial_expression_presence: result.scores[5],
-      feedback: result.feedback
-    };
+    let result;
+    try {
+      result = JSON.parse(match[0]);
+    } catch (err) {
+      return res.status(500).json({
+        error: 'Failed to parse JSON from GPT response.',
+        raw: rawText
+      });
+    }
 
-    res.json({ result: decoded });
+    // Optional: unpack scores for easy use
+    const [glow_score, skin, smile, hair, style, expression] = result.scores;
+
+    res.json({
+      result: {
+        glow_score,
+        skin_clarity: skin,
+        smile_confidence: smile,
+        hair_style_impact: hair,
+        style_upgrade: style,
+        facial_expression_presence: expression,
+        feedback: result.feedback
+      }
+    });
 
   } catch (err) {
     console.error('GPT Vision error:', err.response?.data || err.message);
@@ -84,4 +100,3 @@ Respond ONLY in this exact JSON format (no explanation, no markdown):
 });
 
 module.exports = router;
-
