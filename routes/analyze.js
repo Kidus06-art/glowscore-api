@@ -12,10 +12,21 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-You are an expert in image analysis. Based on the two photos provided (before and after), evaluate the overall glow-up and return a single numeric score from 1 to 100.
-Be strict — only exceptional transformations should receive scores above 90.
-Respond ONLY in this format:
-{ "score": [number from 1 to 100] }
+You are an AI that analyzes before and after glow-up photos.
+
+Evaluate the following five categories (each scored out of 20):
+1. Skin Clarity
+2. Smile Confidence
+3. Hair Style Impact
+4. Style Upgrade
+5. Facial Expression & Presence
+
+Add the scores to get a total glow-up score out of 100.
+
+Return ONLY a list of six numbers in this order:
+[total_score, skin_clarity, smile_confidence, hair_style_impact, style_upgrade, facial_expression_presence]
+
+No extra text, no formatting. Just the raw list.
 `;
 
     const response = await axios.post('https://api.openai.com/v1/chat/completions', {
@@ -38,13 +49,10 @@ Respond ONLY in this format:
       }
     });
 
-    const resultText = response.data.choices[0].message.content;
-    const jsonStart = resultText.indexOf('{');
-    const jsonEnd = resultText.lastIndexOf('}');
-    const jsonString = resultText.slice(jsonStart, jsonEnd + 1);
-    const result = JSON.parse(jsonString);
+    const resultText = response.data.choices[0].message.content.trim();
+    const scoreList = JSON.parse(resultText);
 
-    res.json({ result });
+    res.json({ glow_score: scoreList[0] });
 
   } catch (err) {
     console.error('GPT Vision error:', err.response?.data || err.message);
