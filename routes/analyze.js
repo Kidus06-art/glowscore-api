@@ -21,12 +21,12 @@ Look at both images and evaluate any **visual improvement** in the following 5 c
 4. Clothing coordination or style upgrade
 5. Posture or expression (more open, energetic)
 
-Give a score out of 20 for each category based on visible improvement (not beauty or judgment).
+Give a score out of 20 for each category based on visible improvement.
 
-Respond ONLY with a list of 5 numbers in this order:
+Respond ONLY with five numbers inside square brackets:
 [skin_clarity, smile_confidence, hair_presentation, clothing_upgrade, posture_expression]
 
-Return only the bracketed numbers. No text, no explanation.
+Do not explain or label anything. Only return the bracketed numbers.
 `;
 
     const response = await axios.post('https://api.openai.com/v1/chat/completions', {
@@ -61,11 +61,8 @@ Return only the bracketed numbers. No text, no explanation.
     try {
       scores = JSON.parse(cleanedText);
     } catch (err) {
-      console.error('❌ JSON parsing failed:', cleanedText);
-      return res.status(500).json({
-        error: 'Failed to parse GPT output.',
-        raw: cleanedText
-      });
+      console.error('❌ Failed to parse GPT output:', cleanedText);
+      return res.status(500).json({ error: 'Parsing failed.', raw: cleanedText });
     }
 
     if (!Array.isArray(scores) || scores.length !== 5 || scores.some(n => typeof n !== 'number')) {
@@ -73,25 +70,14 @@ Return only the bracketed numbers. No text, no explanation.
     }
 
     const total_score = scores.reduce((sum, val) => sum + val, 0);
-
-    console.log('✅ Scores:', scores);
     console.log('✅ Total Score:', total_score);
 
-    return res.json({
-      total_score,
-      skin_clarity: scores[0],
-      smile_confidence: scores[1],
-      hair_presentation: scores[2],
-      clothing_upgrade: scores[3],
-      posture_expression: scores[4]
-    });
+    // ✅ Return only the total score
+    res.json({ total_score });
 
   } catch (err) {
     console.error('🔥 Error:', err.stack || err.response?.data || err.message);
-    return res.status(500).json({
-      error: 'AI analysis failed.',
-      details: err.stack || err.response?.data || err.message
-    });
+    res.status(500).json({ error: 'AI analysis failed.' });
   }
 });
 
