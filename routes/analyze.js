@@ -12,23 +12,23 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-You are an AI model that analyzes before and after glow-up images.
+Analyze the two images (before and after) and evaluate the following five categories. Each should be scored out of 20:
 
-Evaluate these 5 categories (each out of 20):
-1. Skin Clarity
-2. Smile Confidence
-3. Hair Style Impact
-4. Style Upgrade
+1. Skin Clarity  
+2. Smile Confidence  
+3. Hair Style Impact  
+4. Style Upgrade  
 5. Facial Expression & Presence
 
-Add them together to calculate a total glow-up score out of 100.
+Add the five category scores to calculate the total glow-up score (out of 100). This should be the **first number**.
 
-⚠️ Your response must ONLY be a list in this format:
+Output exactly six numbers inside square brackets. The order must be:
+
 [total_score, skin_clarity, smile_confidence, hair_style_impact, style_upgrade, facial_expression_presence]
 
-⚠️ Do not explain anything. Do not say "I'm an AI model..." or add any text. Return ONLY the raw list.
-`;
+Output nothing else — no text, no explanation, no labels.
 
+`;
 
     const response = await axios.post('https://api.openai.com/v1/chat/completions', {
       model: 'gpt-4o',
