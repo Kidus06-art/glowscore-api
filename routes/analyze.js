@@ -23,8 +23,6 @@ The format must be:
   "grooming": [1-100],
   "aesthetic": [1-100],
   "confidence": [1-100],
-  "summary": "Short summary here.",
-  "suggestions": "Short tips for improvement."
 }
 
 DO NOT include markdown or text outside the JSON. If the faces in either image are not clear or not found, respond with:
@@ -79,4 +77,3 @@ Be strict. A score over 90 should only happen in amazing transformations.
 });
 
 module.exports = router;
-
