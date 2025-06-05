@@ -12,24 +12,10 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-You are a JSON-only API. Respond ONLY with JSON. No extra comments, no explanations.
-
-The format must be:
-
-{
-  "score": [1-100],
-  "skin": [1-100],
-  "symmetry": [1-100],
-  "grooming": [1-100],
-  "aesthetic": [1-100],
-  "confidence": [1-100],
-}
-
-DO NOT include markdown or text outside the JSON. If the faces in either image are not clear or not found, respond with:
-
-{ "error": "Faces not detected. Please upload clearer before and after photos." }
-
-Be strict. A score over 90 should only happen in amazing transformations.
+You are an expert in image analysis. Based on the two photos provided (before and after), evaluate the overall glow-up and return a single numeric score from 1 to 100.
+Be strict — only exceptional transformations should receive scores above 90.
+Respond ONLY in this format:
+{ "score": [number from 1 to 100] }
 `;
 
     const response = await axios.post('https://api.openai.com/v1/chat/completions', {
@@ -44,8 +30,7 @@ Be strict. A score over 90 should only happen in amazing transformations.
           ]
         }
       ],
-      max_tokens: 500,
-      temperature: 0
+      max_tokens: 100
     }, {
       headers: {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -53,23 +38,14 @@ Be strict. A score over 90 should only happen in amazing transformations.
       }
     });
 
-    const resultText = response.data.choices[0]?.message?.content || '';
+    const resultText = response.data.choices[0].message.content;
     const jsonStart = resultText.indexOf('{');
     const jsonEnd = resultText.lastIndexOf('}');
-
-    if (jsonStart === -1 || jsonEnd === -1) {
-      return res.status(500).json({ error: 'No valid JSON in response' });
-    }
-
     const jsonString = resultText.slice(jsonStart, jsonEnd + 1);
+    const result = JSON.parse(jsonString);
 
-    try {
-      const result = JSON.parse(jsonString);
-      res.json({ result });
-    } catch (jsonErr) {
-      console.error('JSON Parse error:', jsonErr);
-      res.status(500).json({ error: 'AI response was not valid JSON.' });
-    }
+    res.json({ result });
+
   } catch (err) {
     console.error('GPT Vision error:', err.response?.data || err.message);
     res.status(500).json({ error: 'AI analysis failed.' });
