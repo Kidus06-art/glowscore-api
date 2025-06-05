@@ -12,26 +12,10 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-You are an AI trained to evaluate visual improvement between two photos.
-
-Evaluate these 5 visual aspects (without judging people):
-- skin_clarity
-- smile_confidence
-- hair_presentation
-- clothing_upgrade
-- posture_expression
-
-Give each a score from 0 to 20 based on visible change between the two photos.
-
-Respond ONLY in this JSON format (no text, no labels, no explanation):
-
-{
-  "skin_clarity": 18,
-  "smile_confidence": 19,
-  "hair_presentation": 20,
-  "clothing_upgrade": 19,
-  "posture_expression": 20
-}
+You are an expert in image analysis. Based on the two photos provided (before and after), evaluate the overall glow-up and return a single numeric score from 1 to 100.
+Be strict — only exceptional transformations should receive scores above 90.
+Respond ONLY in this format:
+{ "score": [number from 1 to 100] }
 `;
 
     const response = await axios.post('https://api.openai.com/v1/chat/completions', {
@@ -46,7 +30,7 @@ Respond ONLY in this JSON format (no text, no labels, no explanation):
           ]
         }
       ],
-      max_tokens: 300
+      max_tokens: 100
     }, {
       headers: {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -54,34 +38,16 @@ Respond ONLY in this JSON format (no text, no labels, no explanation):
       }
     });
 
-    const resultText = response.data.choices[0].message.content.trim();
-    console.log('RAW GPT OUTPUT:', resultText);
-
+    const resultText = response.data.choices[0].message.content;
     const jsonStart = resultText.indexOf('{');
     const jsonEnd = resultText.lastIndexOf('}');
     const jsonString = resultText.slice(jsonStart, jsonEnd + 1);
+    const result = JSON.parse(jsonString);
 
-    let result;
-    try {
-      result = JSON.parse(jsonString);
-    } catch (err) {
-      console.error('❌ JSON parsing failed:', jsonString);
-      return res.status(500).json({ error: 'Failed to parse GPT output.', raw: jsonString });
-    }
-
-    const total_score =
-      Number(result.skin_clarity) +
-      Number(result.smile_confidence) +
-      Number(result.hair_presentation) +
-      Number(result.clothing_upgrade) +
-      Number(result.posture_expression);
-
-    console.log('✅ Total Score:', total_score);
-
-    res.json({ total_score });
+    res.json({ result });
 
   } catch (err) {
-    console.error('🔥 Server Error:', err.stack || err.message);
+    console.error('GPT Vision error:', err.response?.data || err.message);
     res.status(500).json({ error: 'AI analysis failed.' });
   }
 });
