@@ -12,20 +12,25 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-Analyze the before and after glow-up photos.
+You are an AI trained to analyze changes in visual appearance between two images.
 
-Evaluate these 5 categories (each scored out of 20):
-1. Skin Clarity
-2. Smile Confidence
-3. Hair Style Impact
-4. Style Upgrade
-5. Facial Expression & Presence
+Look at both images and identify improvements or upgrades in the following **visual categories** (not related to attractiveness or judgment):
 
-Respond ONLY with the five scores in this exact order, inside square brackets:
+- Skin clarity (e.g., evenness, reduced blemishes)
+- Smile presence or confidence (e.g., showing more teeth, bigger expression)
+- Hair presentation (e.g., neater, more styled)
+- Clothing or accessories upgrade (e.g., more coordinated outfit)
+- Expression and posture (e.g., more upright, open, expressive)
 
-[skin_clarity, smile_confidence, hair_style_impact, style_upgrade, facial_expression_presence]
+Give each category a score out of 20, based on how much **visual improvement** is seen between the first and second image.
 
-Do not include any explanation, label, or formatting. Only return the bracketed numbers.
+Respond only with a list of 5 numbers in this format:
+
+[skin_clarity, smile_confidence, hair_presentation, clothing_upgrade, expression_posture]
+
+Do not include explanation, labels, or formatting.
+Do not mention appearance or people — only score visible **visual improvement**.
+
 `;
 
     const response = await axios.post(
