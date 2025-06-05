@@ -12,68 +12,69 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-You are an AI glow-up evaluator. Analyze the before and after images provided and rate the subject from 1 to 100 in the following categories:
-- Skin quality
-- Facial symmetry
-- Grooming (hair/facial hair)
-- Style/aesthetic
-- Confidence and expression
+You are a JSON-only API. Respond ONLY with JSON. No extra comments, no explanations.
 
-Be strict. A score above 90 should be rare. Return your response in this exact JSON format:
+The format must be:
 
 {
-  "score": [overall score],
-  "skin": [score],
-  "symmetry": [score],
-  "grooming": [score],
-  "aesthetic": [score],
-  "confidence": [score],
-  "summary": "[1 sentence summary]",
-  "suggestions": "[short improvement suggestions]"
+  "score": [1-100],
+  "skin": [1-100],
+  "symmetry": [1-100],
+  "grooming": [1-100],
+  "aesthetic": [1-100],
+  "confidence": [1-100],
+  "summary": "Short summary here.",
+  "suggestions": "Short tips for improvement."
 }
-Respond with only valid JSON.
-    `;
 
-    const response = await axios.post(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: beforeUrl } },
-              { type: 'image_url', image_url: { url: afterUrl } }
-            ]
-          }
-        ],
-        max_tokens: 600,
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
+DO NOT include markdown or text outside the JSON. If the faces in either image are not clear or not found, respond with:
+
+{ "error": "Faces not detected. Please upload clearer before and after photos." }
+
+Be strict. A score over 90 should only happen in amazing transformations.
+`;
+
+    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: beforeUrl } },
+            { type: 'image_url', image_url: { url: afterUrl } }
+          ]
+        }
+      ],
+      max_tokens: 500,
+      temperature: 0
+    }, {
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
       }
-    );
+    });
 
-    const resultText = response.data.choices[0].message.content;
+    const resultText = response.data.choices[0]?.message?.content || '';
     const jsonStart = resultText.indexOf('{');
     const jsonEnd = resultText.lastIndexOf('}');
+
+    if (jsonStart === -1 || jsonEnd === -1) {
+      return res.status(500).json({ error: 'No valid JSON in response' });
+    }
+
     const jsonString = resultText.slice(jsonStart, jsonEnd + 1);
 
     try {
       const result = JSON.parse(jsonString);
-      return res.json({ result });
+      res.json({ result });
     } catch (jsonErr) {
-      console.error('JSON parsing failed:', jsonErr);
-      return res.status(500).json({ error: 'AI response was not valid JSON.' });
+      console.error('JSON Parse error:', jsonErr);
+      res.status(500).json({ error: 'AI response was not valid JSON.' });
     }
-
   } catch (err) {
     console.error('GPT Vision error:', err.response?.data || err.message);
-    return res.status(500).json({ error: 'AI analysis failed.' });
+    res.status(500).json({ error: 'AI analysis failed.' });
   }
 });
 
