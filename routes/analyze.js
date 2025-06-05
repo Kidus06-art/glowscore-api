@@ -12,25 +12,21 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-You are an AI that analyzes before and after glow-up photos and returns a glow score and category breakdown.
+You are an AI that analyzes glow-ups using two images: before and after.
 
-Evaluate these 5 categories (each scored 0–20):
+Evaluate the following categories (each out of 20):
 1. Skin Clarity
 2. Smile Confidence
 3. Hair Style Impact
 4. Style Upgrade
 5. Facial Expression & Presence
 
-Add up the category scores to produce a total glow score out of 100.
+Add these up for a total glow score out of 100 (first value).
 
-Respond ONLY with this flat JSON format:
+Return ONLY the list of 6 numbers, in this order:
+[total_glow_score, skin_clarity, smile_confidence, hair_style_impact, style_upgrade, facial_expression_presence]
 
-{
-  "scores": [85, 18, 17, 19, 16, 15],
-  "feedback": "You're glowing! New hairstyle and smile really stand out."
-}
-
-No explanation, no formatting — just raw JSON.
+No text, no keys, no explanation. Only the array.
 `;
 
     const response = await axios.post(
@@ -47,7 +43,7 @@ No explanation, no formatting — just raw JSON.
             ]
           }
         ],
-        max_tokens: 400
+        max_tokens: 100
       },
       {
         headers: {
@@ -57,46 +53,4 @@ No explanation, no formatting — just raw JSON.
       }
     );
 
-    const rawText = response.data.choices[0].message.content;
-
-    // Extract JSON object from GPT output
-    const match = rawText.match(/\{[\s\S]*\}/);
-    if (!match) {
-      return res.status(500).json({
-        error: 'No valid JSON found in GPT response.',
-        raw: rawText
-      });
-    }
-
-    let result;
-    try {
-      result = JSON.parse(match[0]);
-    } catch (err) {
-      return res.status(500).json({
-        error: 'Failed to parse JSON from GPT response.',
-        raw: rawText
-      });
-    }
-
-    // Optional: unpack scores for easy use
-    const [glow_score, skin, smile, hair, style, expression] = result.scores;
-
-    res.json({
-      result: {
-        glow_score,
-        skin_clarity: skin,
-        smile_confidence: smile,
-        hair_style_impact: hair,
-        style_upgrade: style,
-        facial_expression_presence: expression,
-        feedback: result.feedback
-      }
-    });
-
-  } catch (err) {
-    console.error('GPT Vision error:', err.response?.data || err.message);
-    res.status(500).json({ error: 'AI analysis failed.', details: err.response?.data || err.message });
-  }
-});
-
-module.exports = router;
+    // Now GPT should respond with a raw list: [85, 18, 17, 19,]()
