@@ -42,44 +42,57 @@ You are an AI glow-up evaluator. Based on two photos (before and after), evaluat
 ❌ Do not add any extra text, explanation, or formatting. Return ONLY the structured object.
 `;
 
-    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: beforeUrl } },
-            { type: 'image_url', image_url: { url: afterUrl } }
-          ]
+    const response = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: beforeUrl } },
+              { type: 'image_url', image_url: { url: afterUrl } }
+            ]
+          }
+        ],
+        max_tokens: 500
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json'
         }
-      ],
-      max_tokens: 400
-    }, {
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
       }
-    });
+    );
 
     const resultText = response.data.choices[0].message.content.trim();
 
+    // DEBUG LOG
+    console.log("RAW GPT OUTPUT:", resultText);
+
+    // Try to extract JSON portion only
+    const jsonStart = resultText.indexOf('{');
+    const jsonEnd = resultText.lastIndexOf('}');
+    const jsonString = resultText.slice(jsonStart, jsonEnd + 1);
+
     let data;
     try {
-      data = JSON.parse(resultText);
+      data = JSON.parse(jsonString);
     } catch (err) {
       return res.status(500).json({
-        error: 'Failed to parse GPT output.',
+        error: 'Failed to parse GPT response as JSON.',
         raw: resultText
       });
     }
 
+    // Safely calculate total score
     const total_score =
-      data.skin_clarity +
-      data.smile_confidence +
-      data.hair_style_impact +
-      data.style_upgrade +
-      data.facial_expression_presence;
+      Number(data.skin_clarity) +
+      Number(data.smile_confidence) +
+      Number(data.hair_style_impact) +
+      Number(data.style_upgrade) +
+      Number(data.facial_expression_presence);
 
     res.json({
       total_score,
