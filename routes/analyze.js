@@ -12,22 +12,34 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-Analyze the two images (before and after) and evaluate the following five categories. Each should be scored out of 20:
+You are an AI glow-up evaluator. Based on two photos (before and after), evaluate the glow-up and return:
 
-1. Skin Clarity  
-2. Smile Confidence  
-3. Hair Style Impact  
-4. Style Upgrade  
-5. Facial Expression & Presence
+1. Scores for the following 5 categories (each out of 20):
+- skin_clarity
+- smile_confidence
+- hair_style_impact
+- style_upgrade
+- facial_expression_presence
 
-Add the five category scores to calculate the total glow-up score (out of 100). This should be the **first number**.
+2. A one-sentence motivational feedback message based on the overall glow-up.
 
-Output exactly six numbers inside square brackets. The order must be:
+3. A section called "recommendations" containing 2–3 personalized improvement tips based on the lowest scoring areas. Keep the tips short and practical.
 
-[total_score, skin_clarity, smile_confidence, hair_style_impact, style_upgrade, facial_expression_presence]
+⚠️ Format your response exactly like this:
+{
+  "skin_clarity": 18,
+  "smile_confidence": 17,
+  "hair_style_impact": 19,
+  "style_upgrade": 16,
+  "facial_expression_presence": 15,
+  "feedback": "You're glowing! New hairstyle and smile really stand out.",
+  "recommendations": [
+    "Try a skincare routine with exfoliation twice a week.",
+    "Whiten your teeth slightly for a brighter smile."
+  ]
+}
 
-Output nothing else — no text, no explanation, no labels.
-
+❌ Do not add any extra text, explanation, or formatting. Return ONLY the structured object.
 `;
 
     const response = await axios.post('https://api.openai.com/v1/chat/completions', {
@@ -42,7 +54,7 @@ Output nothing else — no text, no explanation, no labels.
           ]
         }
       ],
-      max_tokens: 100
+      max_tokens: 400
     }, {
       headers: {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -51,13 +63,35 @@ Output nothing else — no text, no explanation, no labels.
     });
 
     const resultText = response.data.choices[0].message.content.trim();
-    const scoreList = JSON.parse(resultText);
 
-    res.json({ glow_score: scoreList[0] });
+    let data;
+    try {
+      data = JSON.parse(resultText);
+    } catch (err) {
+      return res.status(500).json({
+        error: 'Failed to parse GPT output.',
+        raw: resultText
+      });
+    }
+
+    const total_score =
+      data.skin_clarity +
+      data.smile_confidence +
+      data.hair_style_impact +
+      data.style_upgrade +
+      data.facial_expression_presence;
+
+    res.json({
+      total_score,
+      ...data
+    });
 
   } catch (err) {
     console.error('GPT Vision error:', err.response?.data || err.message);
-    res.status(500).json({ error: 'AI analysis failed.' });
+    res.status(500).json({
+      error: 'AI analysis failed.',
+      details: err.response?.data || err.message
+    });
   }
 });
 
