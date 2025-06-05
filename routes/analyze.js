@@ -1,74 +1,81 @@
 const express = require('express');
 const router = express.Router();
-const { OpenAI } = require('openai');
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const axios = require('axios');
+require('dotenv').config();
 
 router.post('/', async (req, res) => {
-  const { beforeUrl, afterUrl } = req.body;
-
-  if (!beforeUrl || !afterUrl) {
-    return res.status(400).json({ error: 'Missing image URLs' });
-  }
-
-  const prompt = `
-You are an AI glow-up evaluator. Based on the two provided images (before and after), analyze the subject's visual transformation and return a JSON object with:
-
-- Score (overall average) from 1 to 100 (be strict: 90+ means exceptional)
-- Skin: score (1–100)
-- Symmetry: score (1–100)
-- Grooming: score (1–100)
-- Aesthetic/Style: score (1–100)
-- Confidence: score (1–100)
-- Summary (1 sentence max)
-- Suggestions (short recommendations for further improvement)
-
-Respond **only** with raw JSON. No commentary or explanation. Example format:
-
-{
-  "score": 84,
-  "skin": 80,
-  "symmetry": 82,
-  "grooming": 85,
-  "aesthetic": 88,
-  "confidence": 83,
-  "summary": "A solid glow-up with improved grooming and presence.",
-  "suggestions": "Try different lighting and experiment with bolder styling."
-}
-`;
-
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4-vision-preview',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: beforeUrl } },
-            { type: 'image_url', image_url: { url: afterUrl } }
-          ],
-        },
-      ],
-      max_tokens: 800,
-    });
+    const { beforeUrl, afterUrl } = req.body;
 
-    const rawResponse = completion.choices[0]?.message?.content;
-
-    let result;
-    try {
-      result = JSON.parse(rawResponse);
-    } catch (jsonError) {
-      console.error('Failed to parse JSON from AI response:', rawResponse);
-      return res.status(500).json({ error: 'AI response is not in expected format' });
+    if (!beforeUrl || !afterUrl) {
+      return res.status(400).json({ error: 'Both image URLs are required.' });
     }
 
-    return res.json({ result });
+    const prompt = `
+You are an AI beauty and confidence evaluator. Based on the two photos provided (before and after), analyze the subject's visual glow-up and provide scores from 1 to 100 for the following five categories:
+
+1. Skin quality
+2. Facial symmetry
+3. Grooming (hairstyle, facial hair, cleanliness)
+4. Style and aesthetics
+5. Confidence and expression
+
+Be strict with scoring — a score above 90 should reflect an exceptional glow-up. Use the following response format:
+
+{
+  "score": [overall average score],
+  "skin": [score],
+  "symmetry": [score],
+  "grooming": [score],
+  "aesthetic": [score],
+  "confidence": [score],
+  "summary": "[1 sentence summary]",
+  "suggestions": "[short improvement suggestions if any]"
+}
+
+Respond only in raw JSON format.
+    `.trim();
+
+    const apiResponse = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: beforeUrl } },
+              { type: 'image_url', image_url: { url: afterUrl } }
+            ]
+          }
+        ],
+        max_tokens: 500
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    const content = apiResponse.data.choices[0]?.message?.content;
+
+    if (!content) {
+      throw new Error('No content received from OpenAI');
+    }
+
+    const jsonStart = content.indexOf('{');
+    const jsonEnd = content.lastIndexOf('}');
+    const jsonString = content.slice(jsonStart, jsonEnd + 1);
+    const result = JSON.parse(jsonString);
+
+    res.json({ result });
+
   } catch (err) {
-    console.error('GPT Vision error:', err);
-    return res.status(500).json({ error: 'AI analysis failed.' });
+    console.error('GPT Vision error:', err.response?.data || err.message);
+    res.status(500).json({ error: 'AI analysis failed.' });
   }
 });
 
