@@ -12,70 +12,43 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-You are an AI trained to analyze visual differences between two photos.
-
-Evaluate improvements in:
-- Skin clarity
-- Smile confidence
-- Hair presentation
-- Clothing style
-- Expression/posture
-
-Give a score (0-20) for each category. Respond ONLY with:
-[skin_clarity, smile_confidence, hair, clothing, expression]
-No labels or text, only the bracketed numbers.
+You are an expert in image analysis. Based on the two photos provided (before and after), evaluate the overall glow-up and return a single numeric score from 1 to 100.
+Be strict — only exceptional transformations should receive scores above 90.
+Respond ONLY in this format:
+{ "score": [number from 1 to 100] }
 `;
 
-    const response = await axios.post(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: beforeUrl } },
-              { type: 'image_url', image_url: { url: afterUrl } }
-            ]
-          }
-        ],
-        max_tokens: 100
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json'
+    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: beforeUrl } },
+            { type: 'image_url', image_url: { url: afterUrl } }
+          ]
         }
+      ],
+      max_tokens: 100
+    }, {
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
       }
-    );
+    });
 
-    const raw = response.data.choices[0].message.content.trim();
-    console.log("RAW GPT OUTPUT:", raw);
+    const resultText = response.data.choices[0].message.content;
+    const jsonStart = resultText.indexOf('{');
+    const jsonEnd = resultText.lastIndexOf('}');
+    const jsonString = resultText.slice(jsonStart, jsonEnd + 1);
+    const result = JSON.parse(jsonString);
 
-    const cleaned = raw.replace(/```/g, '').replace(/\n/g, '').trim();
-
-    let scores;
-    try {
-      scores = JSON.parse(cleaned);
-    } catch (err) {
-      console.error('❌ Could not parse GPT output:', cleaned);
-      return res.status(500).json({ error: 'Invalid GPT output.', raw: cleaned });
-    }
-
-    if (!Array.isArray(scores) || scores.length !== 5 || scores.some(n => typeof n !== 'number')) {
-      return res.status(500).json({ error: 'Invalid score list.', raw: scores });
-    }
-
-    const total_score = Number(scores.reduce((sum, val) => sum + val, 0));
-    console.log("✅ Total Score:", total_score);
-
-    // ✅ Finally return only the score
-    return res.json({ total_score });
+    res.json({ result });
 
   } catch (err) {
-    console.error('🔥 Server Error:', err.stack || err.message);
-    return res.status(500).json({ error: 'AI analysis failed.', details: err.message });
+    console.error('GPT Vision error:', err.response?.data || err.message);
+    res.status(500).json({ error: 'AI analysis failed.' });
   }
 });
 
