@@ -12,15 +12,15 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-You are a beauty and confidence AI evaluator. Compare the 'before' and 'after' photos and rate the glow-up based on the following 5 categories (1-100 scale):
+You are a beauty and confidence evaluator. Compare the "before" and "after" images. Strictly rate the glow-up on these 5 categories (1-100 scale):
 
 1. Skin quality  
 2. Facial symmetry  
-3. Grooming (hair, facial hair, hygiene)  
+3. Grooming  
 4. Style and aesthetics  
 5. Confidence and expression
 
-Be strict — a score above 90 means exceptional transformation. Return a strict JSON object only with the following structure:
+Only return this raw JSON:
 
 {
   "score": [overall average score],
@@ -30,10 +30,10 @@ Be strict — a score above 90 means exceptional transformation. Return a strict
   "aesthetic": [score],
   "confidence": [score],
   "summary": "[1-line summary]",
-  "suggestions": "[short improvement suggestions]"
+  "suggestions": "[short tips to improve]"
 }
 
-Reply with only valid JSON. No explanation. No formatting. Just the JSON.
+Do not explain. Do not wrap it in \`\`\`. Return just the JSON. Be concise.
 `;
 
     const response = await axios.post(
@@ -62,26 +62,21 @@ Reply with only valid JSON. No explanation. No formatting. Just the JSON.
 
     const content = response.data.choices[0]?.message?.content;
 
-    if (!content) {
-      throw new Error('No response from GPT.');
-    }
+    if (!content) throw new Error('No response from GPT.');
 
-    // Extract only the JSON portion from the content
-    const jsonStart = content.indexOf('{');
-    const jsonEnd = content.lastIndexOf('}');
-    if (jsonStart === -1 || jsonEnd === -1) {
-      throw new Error('No valid JSON in response');
-    }
+    // 🔍 Clean up markdown like ```json
+    const cleaned = content
+      .replace(/```json/g, '')
+      .replace(/```/g, '')
+      .trim();
 
-    const jsonString = content.slice(jsonStart, jsonEnd + 1);
-
+    // ✅ Try parsing cleaned content
     let result;
     try {
-      result = JSON.parse(jsonString);
-    } catch (parseErr) {
-      console.error('JSON parse error:', parseErr);
-      console.error('GPT response:', content);
-      return res.status(500).json({ error: 'Invalid JSON from GPT. Try uploading clearer photos.' });
+      result = JSON.parse(cleaned);
+    } catch (err) {
+      console.error('Failed to parse JSON:', cleaned);
+      return res.status(500).json({ error: 'Invalid JSON from GPT. Try clearer images.' });
     }
 
     res.json({ result });
@@ -92,3 +87,4 @@ Reply with only valid JSON. No explanation. No formatting. Just the JSON.
 });
 
 module.exports = router;
+
