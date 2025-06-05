@@ -56,7 +56,7 @@ Do not include any explanation, label, or formatting. Only return the bracketed 
     console.log('RAW GPT OUTPUT:', resultText);
 
     const cleanedText = resultText
-      .replace(/```/g, '') // remove markdown backticks if present
+      .replace(/```/g, '') // remove backticks if GPT adds them
       .replace(/\n/g, '')  // remove line breaks
       .trim();
 
@@ -77,6 +77,10 @@ Do not include any explanation, label, or formatting. Only return the bracketed 
 
     const total_score = scores.reduce((sum, val) => sum + val, 0);
 
+    // ✅ Debug logs
+    console.log("✅ PARSED SCORES:", scores);
+    console.log("✅ TOTAL SCORE:", total_score);
+
     res.json({
       total_score,
       skin_clarity: scores[0],
@@ -87,10 +91,10 @@ Do not include any explanation, label, or formatting. Only return the bracketed 
     });
 
   } catch (err) {
-    console.error('GPT Vision error (outer catch):', err.response?.data || err.message);
+    console.error('🔥 GPT Vision error (outer catch):', err.stack || err.response?.data || err.message);
     res.status(500).json({
       error: 'AI analysis failed.',
-      details: err.response?.data || err.message
+      details: err.stack || err.response?.data || err.message
     });
   }
 });
