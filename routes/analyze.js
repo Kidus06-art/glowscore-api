@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
+const jsonic = require('jsonic'); // forgiving JSON parser
 require('dotenv').config();
 
 router.post('/', async (req, res) => {
@@ -12,30 +13,23 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-You are an AI trained to analyze before and after glow-up photos and return a total Glow Score out of 100, along with a breakdown.
+You are an AI that analyzes before and after glow-up photos and returns a glow score and detailed breakdown in the form of a single flat array.
 
-Compare the two images and evaluate these categories:
-- Skin Clarity
-- Smile Confidence
-- Hair Style Impact
-- Style Upgrade (clothing/accessories)
-- Facial Expression & Presence
+Evaluate these 5 categories (each out of 20):
+1. Skin Clarity
+2. Smile Confidence
+3. Hair Style Impact
+4. Style Upgrade (clothing/accessories)
+5. Facial Expression & Presence
 
-Respond ONLY in this strict JSON format:
+Then return the total glow_score (sum out of 100) as the first item in the array.
+
+Respond ONLY in this exact JSON format (no explanation, no markdown):
 
 {
-  "glow_score": 85,
-  "category_scores": {
-    "skin_clarity": 18,
-    "smile_confidence": 17,
-    "hair_style_impact": 19,
-    "style_upgrade": 16,
-    "facial_expression_presence": 15
-  },
+  "scores": [85, 18, 17, 19, 16, 15],
   "feedback": "You're glowing! New hairstyle and smile really stand out."
 }
-
-Return no other text. Only raw JSON.
 `;
 
     const response = await axios.post('https://api.openai.com/v1/chat/completions', {
@@ -58,18 +52,30 @@ Return no other text. Only raw JSON.
       }
     });
 
-    const resultText = response.data.choices[0].message.content;
+    const rawText = response.data.choices[0].message.content;
 
-    // 🔍 Extract first valid JSON object using regex
-    const match = resultText.match(/\{[\s\S]*\}/);
-    if (!match) {
-      return res.status(500).json({ error: 'No valid JSON found in GPT response.', raw: resultText });
+    let result;
+    try {
+      result = jsonic(rawText); // safely parse even if there's extra stuff
+    } catch (err) {
+      return res.status(500).json({
+        error: 'Failed to parse GPT output.',
+        raw: rawText
+      });
     }
 
-    const jsonString = match[0];
-    const result = JSON.parse(jsonString);
+    // Optionally decode the score breakdown for clarity
+    const decoded = {
+      glow_score: result.scores[0],
+      skin_clarity: result.scores[1],
+      smile_confidence: result.scores[2],
+      hair_style_impact: result.scores[3],
+      style_upgrade: result.scores[4],
+      facial_expression_presence: result.scores[5],
+      feedback: result.feedback
+    };
 
-    res.json({ result });
+    res.json({ result: decoded });
 
   } catch (err) {
     console.error('GPT Vision error:', err.response?.data || err.message);
@@ -78,3 +84,4 @@ Return no other text. Only raw JSON.
 });
 
 module.exports = router;
+
