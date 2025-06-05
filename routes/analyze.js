@@ -12,29 +12,27 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-You are a beauty and confidence evaluator. Compare the "before" and "after" images. Strictly rate the glow-up on these 5 categories (1-100 scale):
+You are an AI glow-up evaluator. Analyze the before and after images provided and rate the subject from 1 to 100 in the following categories:
+- Skin quality
+- Facial symmetry
+- Grooming (hair/facial hair)
+- Style/aesthetic
+- Confidence and expression
 
-1. Skin quality  
-2. Facial symmetry  
-3. Grooming  
-4. Style and aesthetics  
-5. Confidence and expression
-
-Only return this raw JSON:
+Be strict. A score above 90 should be rare. Return your response in this exact JSON format:
 
 {
-  "score": [overall average score],
+  "score": [overall score],
   "skin": [score],
   "symmetry": [score],
   "grooming": [score],
   "aesthetic": [score],
   "confidence": [score],
-  "summary": "[1-line summary]",
-  "suggestions": "[short tips to improve]"
+  "summary": "[1 sentence summary]",
+  "suggestions": "[short improvement suggestions]"
 }
-
-Do not explain. Do not wrap it in \`\`\`. Return just the JSON. Be concise.
-`;
+Respond with only valid JSON.
+    `;
 
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
@@ -46,43 +44,36 @@ Do not explain. Do not wrap it in \`\`\`. Return just the JSON. Be concise.
             content: [
               { type: 'text', text: prompt },
               { type: 'image_url', image_url: { url: beforeUrl } },
-              { type: 'image_url', image_url: { url: afterUrl } },
-            ],
-          },
+              { type: 'image_url', image_url: { url: afterUrl } }
+            ]
+          }
         ],
-        max_tokens: 500,
+        max_tokens: 600,
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
           'Content-Type': 'application/json',
         },
       }
     );
 
-    const content = response.data.choices[0]?.message?.content;
+    const resultText = response.data.choices[0].message.content;
+    const jsonStart = resultText.indexOf('{');
+    const jsonEnd = resultText.lastIndexOf('}');
+    const jsonString = resultText.slice(jsonStart, jsonEnd + 1);
 
-    if (!content) throw new Error('No response from GPT.');
-
-    // 🔍 Clean up markdown like ```json
-    const cleaned = content
-      .replace(/```json/g, '')
-      .replace(/```/g, '')
-      .trim();
-
-    // ✅ Try parsing cleaned content
-    let result;
     try {
-      result = JSON.parse(cleaned);
-    } catch (err) {
-      console.error('Failed to parse JSON:', cleaned);
-      return res.status(500).json({ error: 'Invalid JSON from GPT. Try clearer images.' });
+      const result = JSON.parse(jsonString);
+      return res.json({ result });
+    } catch (jsonErr) {
+      console.error('JSON parsing failed:', jsonErr);
+      return res.status(500).json({ error: 'AI response was not valid JSON.' });
     }
 
-    res.json({ result });
   } catch (err) {
     console.error('GPT Vision error:', err.response?.data || err.message);
-    res.status(500).json({ error: 'AI analysis failed.' });
+    return res.status(500).json({ error: 'AI analysis failed.' });
   }
 });
 
