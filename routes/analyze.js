@@ -12,63 +12,50 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-You are an AI beauty and confidence evaluator. Based on the two photos provided (before and after), analyze the subject's visual glow-up and provide scores from 1 to 100 for the following five categories:
-
-1. Skin quality
-2. Facial symmetry
-3. Grooming (hairstyle, facial hair, cleanliness)
-4. Style and aesthetics
-5. Confidence and expression
-
-Be strict with scoring — a score above 90 should reflect an exceptional glow-up. Use the following response format:
-
-{
-  "score": [overall average score],
-  "skin": [score],
-  "symmetry": [score],
-  "grooming": [score],
-  "aesthetic": [score],
-  "confidence": [score],
-  "summary": "[1 sentence summary]",
-  "suggestions": "[short improvement suggestions if any]"
-}
-
-Respond only in raw JSON format.
-    `.trim();
-
-    const apiResponse = await axios.post(
-      'https://api.openai.com/v1/chat/completions',
+      You're a glow-up analysis assistant. Evaluate the difference between the "before" and "after" images.
+      1. Give a total GlowScore out of 100.
+      2. Comment on improvements in:
+         - Skin clarity
+         - Facial symmetry
+         - Grooming
+         - Overall aesthetic
+         - Confidence / energy
+      3. Format your reply strictly as JSON like this:
       {
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: beforeUrl } },
-              { type: 'image_url', image_url: { url: afterUrl } }
-            ]
-          }
-        ],
-        max_tokens: 500
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json'
-        }
+        "score": 94,
+        "skin": "Clearer and smoother skin tone",
+        "symmetry": "Slightly improved facial symmetry",
+        "grooming": "Better hairstyle and neat facial hair",
+        "aesthetic": "More stylish appearance and confident vibe",
+        "confidence": "More engaging expression",
+        "summary": "Great glow-up overall, especially in grooming and energy."
       }
-    );
+    `;
 
-    const content = apiResponse.data.choices[0]?.message?.content;
+    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: beforeUrl } },
+            { type: 'image_url', image_url: { url: afterUrl } }
+          ]
+        }
+      ],
+      max_tokens: 500
+    }, {
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
 
-    if (!content) {
-      throw new Error('No content received from OpenAI');
-    }
-
-    const jsonStart = content.indexOf('{');
-    const jsonEnd = content.lastIndexOf('}');
-    const jsonString = content.slice(jsonStart, jsonEnd + 1);
+    const resultText = response.data.choices[0].message.content;
+    const jsonStart = resultText.indexOf('{');
+    const jsonEnd = resultText.lastIndexOf('}');
+    const jsonString = resultText.slice(jsonStart, jsonEnd + 1);
     const result = JSON.parse(jsonString);
 
     res.json({ result });
@@ -80,3 +67,4 @@ Respond only in raw JSON format.
 });
 
 module.exports = router;
+
