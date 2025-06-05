@@ -21,7 +21,7 @@ Compare the two images and evaluate the following visual categories:
 - Style Upgrade (clothing/accessories)
 - Facial Expression & Presence
 
-Respond in **valid JSON only**, no intro or explanation. Here's the required format:
+Respond in **valid JSON only**, no intro or explanation. It has to be the exact same thing as down below. The Only thing you can modify are letters and numbers dont touch any ponctuations.Here's the required format:
 
 {
   "glow_score": 87,
