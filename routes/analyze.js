@@ -18,22 +18,29 @@ router.post('/analyze-outfit', async (req, res) => {
         {
           role: 'user',
           content: [
-            { type: 'text', text: `Rate this outfit based on these categories: 
-- Style (out of 20) 
-- Coordination (out of 20) 
-- Confidence (out of 20) 
-- Uniqueness (out of 20) 
-- Presentation (out of 20)
+            {
+              type: 'text',
+              text: `You are a professional fashion stylist.
+Please evaluate this person's outfit and give each of the following 5 criteria a score out of 20:
 
-Then give one short paragraph of recommendations to improve fashion sense. Return only JSON in this format:
+- Style
+- Coordination
+- Confidence
+- Uniqueness
+- Presentation
+
+After the scores, provide one short fashion recommendation to help them improve.
+
+Return only this JSON format:
 {
-  "style": 18,
-  "coordination": 17,
-  "confidence": 19,
-  "uniqueness": 15,
-  "presentation": 16,
-  "recommendations": "Consider wearing accessories or layering to enhance visual interest."
-}` },
+  "style": <number>,
+  "coordination": <number>,
+  "confidence": <number>,
+  "uniqueness": <number>,
+  "presentation": <number>,
+  "recommendations": "<short tip>"
+}`
+            },
             {
               type: 'image_url',
               image_url: { url: imageUrl }
@@ -45,6 +52,7 @@ Then give one short paragraph of recommendations to improve fashion sense. Retur
     });
 
     const raw = completion.choices[0].message.content;
+    console.log('GPT RAW OUTPUT:', raw); // 👀 Output to Render logs for debugging
 
     const jsonStart = raw.indexOf('{');
     const jsonEnd = raw.lastIndexOf('}');
@@ -53,8 +61,8 @@ Then give one short paragraph of recommendations to improve fashion sense. Retur
 
     res.json({ result });
   } catch (err) {
-    console.error('Backend error:', err);
-    res.status(500).json({ error: 'Analysis failed. Please try again later.' });
+    console.error('Analyze route error:', err);
+    res.status(500).json({ error: 'Failed to analyze the outfit.' });
   }
 });
 
