@@ -4,7 +4,7 @@ const router = express.Router();
 const db = require('../firebase-admin'); // make sure this file exports the Firestore instance
 require('dotenv').config();
 
-router.post('/analyze-outfit', async (req, res) => {
+router.post('/analyze', async (req, res) => {
   try {
     const { imageUrl } = req.body;
     if (!imageUrl) {
