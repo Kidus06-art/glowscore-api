@@ -12,57 +12,52 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-You are an AI glow-up evaluator. Compare the two photos provided and return a JSON with scores from 1 to 100 for:
+You are a beauty and confidence evaluator AI. Compare the two photos (before and after) of the same person and provide detailed scores (from 1 to 100) for the following:
 
-- skin
-- symmetry
-- grooming
-- aesthetic
-- confidence
+1. Skin
+2. Symmetry
+3. Grooming
+4. Aesthetic (style and vibe)
+5. Confidence (expression and presence)
 
-Also provide:
-- score: the average of those 5
-- summary: short 1-line summary
-- suggestions: short tips to improve
+Respond strictly using the following JSON format:
 
-Be very strict. Only return the raw JSON in this format:
 {
-  "score": 83,
-  "skin": 80,
-  "symmetry": 85,
-  "grooming": 90,
-  "aesthetic": 78,
-  "confidence": 82,
-  "summary": "Great glow-up in grooming and symmetry.",
-  "suggestions": "Consider improving lighting and posture."
+  "skin": [number],
+  "symmetry": [number],
+  "grooming": [number],
+  "aesthetic": [number],
+  "confidence": [number],
+  "summary": "[One-sentence analysis]",
+  "suggestions": "[Optional improvement tips]"
 }
-`;
 
-    const response = await axios.post(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: beforeUrl } },
-              { type: 'image_url', image_url: { url: afterUrl } }
-            ]
-          }
-        ],
-        max_tokens: 700
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json'
+Be critical and don't give high scores easily. A score above 90 should be rare and reflect exceptional improvement. Respond in raw JSON format only.
+    `;
+
+    const gptResponse = await axios.post('https://api.openai.com/v1/chat/completions', {
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: beforeUrl } },
+            { type: 'image_url', image_url: { url: afterUrl } }
+          ]
         }
+      ],
+      max_tokens: 500
+    }, {
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
       }
-    );
+    });
 
-    const resultText = response.data.choices[0].message.content;
+    const resultText = gptResponse.data.choices[0].message.content;
+
+    // Extract JSON from raw GPT response
     const jsonStart = resultText.indexOf('{');
     const jsonEnd = resultText.lastIndexOf('}');
     const jsonString = resultText.slice(jsonStart, jsonEnd + 1);
