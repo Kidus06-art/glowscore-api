@@ -12,31 +12,55 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-You are an expert in image analysis. Based on the two photos provided (before and after), evaluate the overall glow-up and return a single numeric score from 1 to 100.
-Be strict — only exceptional transformations should receive scores above 90.
-Respond ONLY in this format:
-{ "score": [number from 1 to 100] }
+You are an AI glow-up evaluator. Compare the two photos provided and return a JSON with scores from 1 to 100 for:
+
+- skin
+- symmetry
+- grooming
+- aesthetic
+- confidence
+
+Also provide:
+- score: the average of those 5
+- summary: short 1-line summary
+- suggestions: short tips to improve
+
+Be very strict. Only return the raw JSON in this format:
+{
+  "score": 83,
+  "skin": 80,
+  "symmetry": 85,
+  "grooming": 90,
+  "aesthetic": 78,
+  "confidence": 82,
+  "summary": "Great glow-up in grooming and symmetry.",
+  "suggestions": "Consider improving lighting and posture."
+}
 `;
 
-    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: beforeUrl } },
-            { type: 'image_url', image_url: { url: afterUrl } }
-          ]
+    const response = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: beforeUrl } },
+              { type: 'image_url', image_url: { url: afterUrl } }
+            ]
+          }
+        ],
+        max_tokens: 700
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json'
         }
-      ],
-      max_tokens: 100
-    }, {
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
       }
-    });
+    );
 
     const resultText = response.data.choices[0].message.content;
     const jsonStart = resultText.indexOf('{');
