@@ -1,94 +1,77 @@
-import express from 'express';
-import OpenAI from 'openai';
-import admin from 'firebase-admin';
-import dotenv from 'dotenv';
-
-dotenv.config();
-
+const express = require('express');
+const axios = require('axios');
 const router = express.Router();
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-// Initialize Firebase Admin SDK (only once in your app)
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)),
-  });
-}
-
-const db = admin.firestore();
+const db = require('../firebase-admin'); // make sure this file exports the Firestore instance
+require('dotenv').config();
 
 router.post('/analyze-outfit', async (req, res) => {
   try {
     const { imageUrl } = req.body;
-
     if (!imageUrl) {
-      return res.status(400).json({ error: 'Image URL is required.' });
+      return res.status(400).json({ error: 'Missing image URL' });
     }
 
-    // Prompt for GPT
     const prompt = `
-You are a fashion expert.
-Evaluate this outfit across the following criteria, each scored out of 20:
-- Style
-- Coordination
-- Confidence
-- Uniqueness
-- Presentation
+You are a fashion stylist AI.
+Evaluate this outfit image based on the following criteria, giving each one a score out of 20:
 
-Also provide one short recommendation for improving their fashion.
+1. Style
+2. Coordination
+3. Confidence
+4. Uniqueness
+5. Presentation
 
-Return ONLY valid JSON like this:
+After scoring, provide ONE short fashion recommendation. Respond ONLY in this JSON format:
 {
-  "style": 16,
-  "coordination": 18,
-  "confidence": 17,
-  "uniqueness": 15,
-  "presentation": 18,
-  "recommendation": "Try layering with a bold accessory."
+  "style": <number>,
+  "coordination": <number>,
+  "confidence": <number>,
+  "uniqueness": <number>,
+  "presentation": <number>,
+  "recommendation": "<short text>"
 }
-    `;
+`;
 
-    const response = await openai.chat.completions.create({
+    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
       model: 'gpt-4o',
       messages: [
         {
           role: 'user',
           content: [
             { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: imageUrl } },
-          ],
-        },
+            { type: 'image_url', image_url: { url: imageUrl } }
+          ]
+        }
       ],
-      max_tokens: 500,
+      max_tokens: 500
+    }, {
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
     });
 
-    const raw = response.choices[0].message.content;
+    const raw = response.data.choices[0].message.content;
     const jsonStart = raw.indexOf('{');
     const jsonEnd = raw.lastIndexOf('}');
     const jsonString = raw.slice(jsonStart, jsonEnd + 1);
     const result = JSON.parse(jsonString);
 
-    const totalScore =
-      result.style +
-      result.coordination +
-      result.confidence +
-      result.uniqueness +
-      result.presentation;
+    const totalScore = result.style + result.coordination + result.confidence + result.uniqueness + result.presentation;
 
-    const outfitDoc = {
+    await db.collection('outfits').add({
       imageUrl,
       ...result,
       totalScore,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    };
+      timestamp: new Date()
+    });
 
-    await db.collection('outfitRatings').add(outfitDoc);
+    res.json({ success: true });
 
-    res.status(200).json({ success: true });
   } catch (err) {
-    console.error('Analyze outfit error:', err.response?.data || err.message);
-    res.status(500).json({ error: 'Failed to analyze and store outfit rating.' });
+    console.error('Analyze error:', err.response?.data || err.message || err);
+    res.status(500).json({ error: 'Failed to analyze or store data.' });
   }
 });
 
-export default router;
+module.exports = router;
