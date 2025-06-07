@@ -12,38 +12,13 @@ router.post('/', async (req, res) => {
     }
 
     const prompt = `
-You are a beauty and confidence evaluator AI. You will be given two images of the same person: a before and an after photo.
-
-Your task is to evaluate how much the person's appearance improved in the following five categories. For each, assign a score between 1 and 100:
-
-1. Skin quality
-2. Facial symmetry
-3. Grooming (hairstyle, facial hair, cleanliness)
-4. Aesthetic (style, vibe, fashion)
-5. Confidence and expression
-
-Then, summarize the overall glow-up in one sentence, and suggest one or two areas the user can still improve.
-
-⚠️ Very important: 
-👉 **Your entire response must be a valid JSON object.**
-👉 **Do not include any extra explanation.**
-👉 **Do not wrap the JSON in triple backticks or markdown.**
-👉 Be strict. A score above 90 should be rare and exceptional.
-
-Use this format exactly:
-
-{
-  "skin": [number],
-  "symmetry": [number],
-  "grooming": [number],
-  "aesthetic": [number],
-  "confidence": [number],
-  "summary": "Your summary here.",
-  "suggestions": "Your improvement suggestions here."
-}
+You are an expert in image analysis. Based on the two photos provided (before and after), evaluate the overall glow-up and return a single numeric score from 1 to 100.
+Be strict — only exceptional transformations should receive scores above 90.
+Respond ONLY in this format:
+{ "score": [number from 1 to 100] }
 `;
 
-    const gptResponse = await axios.post('https://api.openai.com/v1/chat/completions', {
+    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
       model: 'gpt-4o',
       messages: [
         {
@@ -55,8 +30,7 @@ Use this format exactly:
           ]
         }
       ],
-      max_tokens: 600,
-      temperature: 0.7
+      max_tokens: 100
     }, {
       headers: {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -64,15 +38,10 @@ Use this format exactly:
       }
     });
 
-    const resultText = gptResponse.data.choices[0].message.content;
-
-    // Try to extract a JSON object from the response text using RegEx
-    const match = resultText.match(/{[\s\S]*}/);
-    if (!match) {
-      throw new Error('No valid JSON in response');
-    }
-
-    const jsonString = match[0];
+    const resultText = response.data.choices[0].message.content;
+    const jsonStart = resultText.indexOf('{');
+    const jsonEnd = resultText.lastIndexOf('}');
+    const jsonString = resultText.slice(jsonStart, jsonEnd + 1);
     const result = JSON.parse(jsonString);
 
     res.json({ result });
