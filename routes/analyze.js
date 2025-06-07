@@ -1,10 +1,9 @@
-import express from 'express';
-import OpenAI from 'openai';
-
+const express = require('express');
 const router = express.Router();
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const axios = require('axios');
+require('dotenv').config();
 
-router.post('/analyze-outfit', async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { imageUrl } = req.body;
 
@@ -12,15 +11,8 @@ router.post('/analyze-outfit', async (req, res) => {
       return res.status(400).json({ error: 'Missing image URL' });
     }
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4-vision-preview',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: `You are a professional fashion stylist.
+    const prompt = `
+You are a professional fashion stylist.
 Please evaluate this person's outfit and give each of the following 5 criteria a score out of 20:
 
 - Style
@@ -39,31 +31,42 @@ Return only this JSON format:
   "uniqueness": <number>,
   "presentation": <number>,
   "recommendations": "<short tip>"
-}`
-            },
-            {
-              type: 'image_url',
-              image_url: { url: imageUrl }
-            }
+}
+`;
+
+    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: imageUrl } }
           ]
         }
       ],
-      max_tokens: 500
+      max_tokens: 300
+    }, {
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
     });
 
-    const raw = completion.choices[0].message.content;
-    console.log('GPT RAW OUTPUT:', raw); // 👀 Output to Render logs for debugging
+    const resultText = response.data.choices[0].message.content;
+    console.log('GPT RAW OUTPUT:', resultText); // 🔍 Log output to Render logs
 
-    const jsonStart = raw.indexOf('{');
-    const jsonEnd = raw.lastIndexOf('}');
-    const jsonString = raw.slice(jsonStart, jsonEnd + 1);
+    const jsonStart = resultText.indexOf('{');
+    const jsonEnd = resultText.lastIndexOf('}');
+    const jsonString = resultText.slice(jsonStart, jsonEnd + 1);
     const result = JSON.parse(jsonString);
 
     res.json({ result });
+
   } catch (err) {
-    console.error('Analyze route error:', err);
-    res.status(500).json({ error: 'Failed to analyze the outfit.' });
+    console.error('GPT Vision error:', err.response?.data || err.message);
+    res.status(500).json({ error: 'AI analysis failed.' });
   }
 });
 
-export default router;
+module.exports = router;
