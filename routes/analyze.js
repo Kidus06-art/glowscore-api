@@ -1,99 +1,94 @@
-const express = require('express');
-const axios = require('axios');
-const admin = require('firebase-admin');
-require('dotenv').config();
+import express from 'express';
+import OpenAI from 'openai';
+import admin from 'firebase-admin';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const router = express.Router();
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// ✅ Initialize Firebase Admin
+// Initialize Firebase Admin SDK (only once in your app)
 if (!admin.apps.length) {
-  const serviceAccount = require('../serviceAccountKey.json');
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    databaseURL: process.env.FIREBASE_DB_URL,
+    credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)),
   });
 }
 
 const db = admin.firestore();
 
-// ✅ POST /analyze-outfit
 router.post('/analyze-outfit', async (req, res) => {
   try {
     const { imageUrl } = req.body;
 
     if (!imageUrl) {
-      return res.status(400).json({ error: 'Missing image URL' });
+      return res.status(400).json({ error: 'Image URL is required.' });
     }
 
+    // Prompt for GPT
     const prompt = `
-You are a fashion stylist. Rate the outfit in this image with scores out of 20 for:
+You are a fashion expert.
+Evaluate this outfit across the following criteria, each scored out of 20:
 - Style
 - Coordination
 - Confidence
 - Uniqueness
 - Presentation
 
-Also, give one short fashion recommendation.
+Also provide one short recommendation for improving their fashion.
 
-Return only this JSON format:
+Return ONLY valid JSON like this:
 {
-  "style": <number>,
-  "coordination": <number>,
-  "confidence": <number>,
-  "uniqueness": <number>,
-  "presentation": <number>,
-  "recommendations": "<short tip>"
+  "style": 16,
+  "coordination": 18,
+  "confidence": 17,
+  "uniqueness": 15,
+  "presentation": 18,
+  "recommendation": "Try layering with a bold accessory."
 }
-`;
+    `;
 
-    const response = await axios.post(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: imageUrl } },
-            ],
-          },
-        ],
-        max_tokens: 500,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: imageUrl } },
+          ],
         },
-      }
-    );
-
-    const resultText = response.data.choices[0].message.content;
-    const jsonStart = resultText.indexOf('{');
-    const jsonEnd = resultText.lastIndexOf('}');
-    const jsonString = resultText.slice(jsonStart, jsonEnd + 1);
-    const parsed = JSON.parse(jsonString);
-
-    const totalScore =
-      parsed.style +
-      parsed.coordination +
-      parsed.confidence +
-      parsed.uniqueness +
-      parsed.presentation;
-
-    const docRef = await db.collection('outfitRatings').add({
-      imageUrl,
-      ...parsed,
-      totalScore,
-      createdAt: new Date(),
+      ],
+      max_tokens: 500,
     });
 
-    res.json({ success: true, id: docRef.id });
+    const raw = response.choices[0].message.content;
+    const jsonStart = raw.indexOf('{');
+    const jsonEnd = raw.lastIndexOf('}');
+    const jsonString = raw.slice(jsonStart, jsonEnd + 1);
+    const result = JSON.parse(jsonString);
+
+    const totalScore =
+      result.style +
+      result.coordination +
+      result.confidence +
+      result.uniqueness +
+      result.presentation;
+
+    const outfitDoc = {
+      imageUrl,
+      ...result,
+      totalScore,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    await db.collection('outfitRatings').add(outfitDoc);
+
+    res.status(200).json({ success: true });
   } catch (err) {
     console.error('Analyze outfit error:', err.response?.data || err.message);
-    res.status(500).json({ error: 'AI analysis failed.' });
+    res.status(500).json({ error: 'Failed to analyze and store outfit rating.' });
   }
 });
 
-module.exports = router;
+export default router;
