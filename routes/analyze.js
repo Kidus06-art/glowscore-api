@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { Configuration, OpenAIApi } = require('openai');
+const { OpenAI } = require('openai');
 const admin = require('firebase-admin');
 
-// Initialize Firebase Admin SDK with env variables
+// ✅ Initialize Firebase Admin SDK
 admin.initializeApp({
   credential: admin.credential.cert({
     projectId: process.env.FIREBASE_PROJECT_ID,
@@ -14,11 +14,10 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
-// OpenAI setup
-const configuration = new Configuration({
+// ✅ Initialize OpenAI
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-const openai = new OpenAIApi(configuration);
 
 router.post('/analyze-outfit', async (req, res) => {
   try {
@@ -42,12 +41,12 @@ You are a professional fashion stylist AI. Based on the image URL provided, gene
 Only return valid JSON. Here is the image URL: ${imageUrl}
 `;
 
-    const completion = await openai.createChatCompletion({
+    const completion = await openai.chat.completions.create({
       model: 'gpt-4',
       messages: [{ role: 'user', content: prompt }],
     });
 
-    const aiResponse = completion.data.choices[0].message.content;
+    const aiResponse = completion.choices[0].message.content;
     console.log('💬 AI Raw Response:', aiResponse);
 
     let result;
