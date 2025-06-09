@@ -19,7 +19,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-router.post('/analyze-outfit', async (req, res) => {
+router.post('/analyze', async (req, res) => {
   try {
     const { imageUrl } = req.body;
     if (!imageUrl) {
