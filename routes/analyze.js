@@ -1,39 +1,43 @@
 const express = require('express');
 const axios = require('axios');
-const { db } = require('../firebase-admin'); // Make sure this path is correct
+const { db } = require('../firebase-admin'); // make sure this file exists and is correctly exporting Firestore
 require('dotenv').config();
 
 const router = express.Router();
 
 router.post('/analyze-outfit', async (req, res) => {
+  console.log('📩 Received analyze-outfit request');
+
   try {
     const { imageUrl } = req.body;
+    console.log('🖼️ imageUrl from frontend:', imageUrl);
 
     if (!imageUrl) {
       return res.status(400).json({ error: 'Missing image URL' });
     }
 
     const prompt = `
-You are a fashion stylist AI.
-Evaluate the person’s outfit in the image using the following criteria. Give each one a score from 0 to 20:
+You are a professional fashion stylist.
+Please evaluate this person's outfit and give each of the following 5 criteria a score out of 20:
+
 - Style
 - Coordination
 - Confidence
 - Uniqueness
 - Presentation
 
-Then give ONE short recommendation (1 sentence max) to help improve.
+After the scores, provide one short fashion recommendation to help them improve.
 
-Return ONLY in this format:
+Return only this JSON format:
 {
   "style": <number>,
   "coordination": <number>,
   "confidence": <number>,
   "uniqueness": <number>,
   "presentation": <number>,
-  "recommendation": "<tip>"
+  "recommendations": "<short tip>"
 }
-`;
+    `;
 
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
@@ -48,21 +52,22 @@ Return ONLY in this format:
             ]
           }
         ],
-        max_tokens: 300
+        max_tokens: 500
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
           'Content-Type': 'application/json'
         }
       }
     );
 
-    const resultText = response.data.choices[0].message.content;
+    const raw = response.data.choices[0].message.content;
+    console.log('📤 OpenAI raw response:', raw);
 
-    const jsonStart = resultText.indexOf('{');
-    const jsonEnd = resultText.lastIndexOf('}');
-    const jsonString = resultText.slice(jsonStart, jsonEnd + 1);
+    const jsonStart = raw.indexOf('{');
+    const jsonEnd = raw.lastIndexOf('}');
+    const jsonString = raw.slice(jsonStart, jsonEnd + 1);
     const result = JSON.parse(jsonString);
 
     const totalScore =
@@ -72,21 +77,21 @@ Return ONLY in this format:
       result.uniqueness +
       result.presentation;
 
-    console.log('✅ Image URL:', imageUrl);
-    console.log('✅ Parsed result:', result);
-    console.log('✅ Total Score:', totalScore);
+    console.log('📥 Parsed scores:', result);
+    console.log('📊 Total score:', totalScore);
 
     await db.collection('outfitRatings').add({
       imageUrl,
       ...result,
       totalScore,
-      createdAt: new Date()
+      timestamp: new Date()
     });
 
+    console.log('✅ Successfully saved to Firebase');
     res.json({ success: true });
   } catch (err) {
-    console.error('❌ Error analyzing outfit:', err?.response?.data || err.message);
-    res.status(500).json({ error: 'Failed to analyze and store outfit.' });
+    console.error('❌ Analyze route error:', err.message);
+    res.status(500).json({ error: 'Failed to analyze and store the outfit rating.' });
   }
 });
 
