@@ -1,63 +1,77 @@
 const express = require('express');
 const router = express.Router();
-const fetch = require('node-fetch');
+const { Configuration, OpenAIApi } = require('openai');
 const admin = require('firebase-admin');
 
-// ✅ Step 1: Parse the full JSON string from Render environment variable
-const serviceAccount = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+// Initialize Firebase Admin SDK with env variables
+admin.initializeApp({
+  credential: admin.credential.cert({
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+  }),
+});
 
-// ✅ Step 2: Initialize Firebase Admin SDK if not already initialized
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-}
-
-// ✅ Step 3: Initialize Firestore
 const db = admin.firestore();
 
-// ✅ Step 4: Main route
+// OpenAI setup
+const configuration = new Configuration({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+const openai = new OpenAIApi(configuration);
+
 router.post('/analyze-outfit', async (req, res) => {
   try {
     const { imageUrl } = req.body;
+    if (!imageUrl) {
+      return res.status(400).json({ error: 'Image URL is required.' });
+    }
 
-    console.log('Received image URL:', imageUrl);
+    const prompt = `
+You are a professional fashion stylist AI. Based on the image URL provided, generate a JSON object that includes:
 
-    // ✅ Replace this with your actual AI response if using OpenAI or Replicate
-    const result = {
-      skin_clarity: Math.floor(Math.random() * 21),
-      smile_confidence: Math.floor(Math.random() * 21),
-      hair_presentation: Math.floor(Math.random() * 21),
-      clothing_upgrade: Math.floor(Math.random() * 21),
-      posture_expression: Math.floor(Math.random() * 21),
+{
+  "skin_clarity": [0-20],
+  "smile_confidence": [0-20],
+  "hair_presentation": [0-20],
+  "clothing_upgrade": [0-20],
+  "posture_expression": [0-20],
+  "recommendations": "Include specific advice for improvement based on the scores."
+}
+
+Only return valid JSON. Here is the image URL: ${imageUrl}
+`;
+
+    const completion = await openai.createChatCompletion({
+      model: 'gpt-4',
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const aiResponse = completion.data.choices[0].message.content;
+    console.log('💬 AI Raw Response:', aiResponse);
+
+    let result;
+    try {
+      result = JSON.parse(aiResponse);
+    } catch (err) {
+      console.error('❌ JSON Parse Error:', err.message);
+      return res.status(500).json({ error: 'AI response was not valid JSON.' });
+    }
+
+    const entry = {
+      imageUrl,
+      timestamp: new Date().toISOString(),
+      result,
     };
 
-    const totalScore = Object.values(result).reduce((sum, val) => sum + val, 0);
+    await db.collection('outfits').add(entry);
 
-    console.log('AI result:', result);
-    console.log('Total score:', totalScore);
+    console.log('✅ Firestore Entry Saved:', entry);
+    res.json({ success: true, result });
 
-    // ✅ Step 5: Save to Firestore
-    const docRef = await db.collection('outfitRatings').add({
-      imageUrl,
-      ...result,
-      totalScore,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    console.log('Saved to Firestore with ID:', docRef.id);
-
-    // ✅ Step 6: Return result to frontend
-    res.status(200).json({
-      result: {
-        ...result,
-        score: totalScore,
-        description: 'Your outfit was successfully analyzed and saved!',
-      },
-    });
   } catch (err) {
-    console.error('Error analyzing outfit:', err);
-    res.status(500).json({ error: 'Failed to analyze outfit.' });
+    console.error('❌ General Error:', err.message);
+    res.status(500).json({ error: 'Server error while analyzing outfit.' });
   }
 });
 
