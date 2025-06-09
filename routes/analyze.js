@@ -4,7 +4,7 @@ const axios = require('axios');
 const admin = require('../firebase-admin'); // make sure this path is correct
 const db = admin.firestore();
 
-router.post('/analyze-outfit', async (req, res) => {
+router.post('/analyze', async (req, res) => {
   console.log('🟢 /analyze-outfit endpoint called'); // Step 1: Confirm route is triggered
 
   try {
