@@ -17,34 +17,31 @@ router.post('/analyze-outfit', async (req, res) => {
 
     console.log('🖼️ Received imageUrl:', imageUrl);
 
-    const prompt = `
-You are a professional fashion stylist with expertise in modern youth fashion trends. Evaluate this person's outfit based on current Gen Z and Millennial standards of what is considered stylish or “drippy” (e.g., good layering, color coordination, accessories, originality, and confidence in the look).
+    const prompt = `You are a professional fashion stylist with deep knowledge of modern Gen Z and Millennial fashion standards. Evaluate the outfit in the photo based on what's considered stylish or "drippy" in today's youth culture — including factors like good layering, color matching, fit, creativity, accessories, and confidence.
 
-Score the outfit strictly on a scale from 0 to 20 for each of the following five categories. Only give a total score above 90 if the outfit is exceptionally stylish, well-coordinated, and creative by modern fashion standards:
+Score each of the following categories strictly from 0 to 20. Only give a total score above 90 if the outfit is truly exceptional and stands out by modern fashion standards.
 
-    Style
+Categories to score:
+- Style
+- Coordination
+- Confidence
+- Uniqueness
+- Presentation
 
-    Coordination
+Then give ONE short and practical fashion tip that could improve the outfit — it should be clear, insightful, and relevant (like "add a statement belt" or "experiment with layering").
 
-    Confidence
-
-    Uniqueness
-
-    Presentation
-
-Then provide one short and actionable fashion recommendation based on the outfit that could genuinely improve the look (e.g., add accessories, adjust proportions, improve fit, play with color contrast).
-
-Return only this JSON:
-
+Return ONLY a valid JSON like this. If anything goes wrong, return a default JSON with scores as 0 and a helpful tip:
 {
   "style": <number>,
   "coordination": <number>,
   "confidence": <number>,
   "uniqueness": <number>,
   "presentation": <number>,
-  "recommendations": "<concise and useful tip>"
+  "recommendations": "<short and useful tip>"
 }
-`;
+
+Respond with nothing else — no explanations, no markdown, only raw JSON.`;
+
 
     const response = await axios.post('https://api.openai.com/v1/chat/completions', {
       model: 'gpt-4o',
