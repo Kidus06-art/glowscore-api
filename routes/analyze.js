@@ -18,24 +18,31 @@ router.post('/analyze-outfit', async (req, res) => {
     console.log('🖼️ Received imageUrl:', imageUrl);
 
     const prompt = `
-You are a professional fashion stylist.
-Please evaluate this person's outfit and give each of the following 5 criteria a score out of 20:
-- Style
-- Coordination
-- Confidence
-- Uniqueness
-- Presentation
+You are a professional fashion stylist with expertise in modern youth fashion trends. Evaluate this person's outfit based on current Gen Z and Millennial standards of what is considered stylish or “drippy” (e.g., good layering, color coordination, accessories, originality, and confidence in the look).
 
-Then provide one short fashion recommendation.
+Score the outfit strictly on a scale from 0 to 20 for each of the following five categories. Only give a total score above 90 if the outfit is exceptionally stylish, well-coordinated, and creative by modern fashion standards:
+
+    Style
+
+    Coordination
+
+    Confidence
+
+    Uniqueness
+
+    Presentation
+
+Then provide one short and actionable fashion recommendation based on the outfit that could genuinely improve the look (e.g., add accessories, adjust proportions, improve fit, play with color contrast).
 
 Return only this JSON:
+
 {
   "style": <number>,
   "coordination": <number>,
   "confidence": <number>,
   "uniqueness": <number>,
   "presentation": <number>,
-  "recommendations": "<short tip>"
+  "recommendations": "<concise and useful tip>"
 }
 `;
 
